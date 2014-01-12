@@ -5,6 +5,7 @@ use std::ptr;
 use std::libc::c_int;
 use pixels;
 use rwops;
+use render::BlendMode;
 
 pub mod ll {
     use pixels::ll::SDL_PixelFormat;
@@ -222,13 +223,57 @@ impl Surface {
             Err(get_error())
         }
     }
+
+    pub fn set_alpha_mod(&self, alpha: u8) -> bool {
+        unsafe {
+            ll::SDL_SetSurfaceAlphaMod(self.raw, alpha) == 0
+        }
+    }
+
+    pub fn get_alpha_mod(&self) -> Result<u8, ~str> {
+        let alpha: u8 = 0;
+        let result = unsafe {
+            ll::SDL_GetSurfaceAlphaMod(self.raw, &alpha) == 0
+        };
+        if result {
+            Ok(alpha)
+        } else {
+            Err(get_error())
+        }
+    }
+
+    /*pub fn set_blend_mode(&self, blend: BlendMode) -> bool {
+        unsafe { ll::SDL_SetSurfaceBlendMode(self.raw, FromPrimitive::from_i64(blend as i64).unwrap()) == 0}
+        false
+    }*/ //FIXME: This currently breaks the compiler
+
+    pub fn get_blend_mode(&self) -> Result<BlendMode, ~str> {
+        let blend: i64 = 0;
+        let result = unsafe { ll::SDL_GetSurfaceBlendMode(self.raw, &FromPrimitive::from_i64(blend as i64).unwrap()) == 0 };
+        if result {
+            Ok(FromPrimitive::from_i64(blend as i64).unwrap())
+        } else {
+            Err(get_error())
+        }
+    }
+
+    pub fn set_clip_rect(&self, rect: &Rect) -> bool {
+        unsafe { ll::SDL_SetClipRect(self.raw, rect) == 0 }
+    }
+
+    pub fn get_clip_rect(&self) -> Rect {
+        let rect = Rect{
+            x: 0,
+            y: 0,
+            w: 0,
+            h: 0
+        };
+        unsafe { ll::SDL_GetClipRect(self.raw, &rect) };
+        rect
+    }
+
+
     /*
-    pub fn SDL_SetSurfaceAlphaMod(surface: *SDL_Surface, alpha: uint8_t) -> c_int;
-    pub fn SDL_GetSurfaceAlphaMod(surface: *SDL_Surface, alpha: *uint8_t ) -> c_int;
-    pub fn SDL_SetSurfaceBlendMode(surface: *SDL_Surface, blendMode: SDL_BlendMode) -> c_int;
-    pub fn SDL_GetSurfaceBlendMode(surface: *SDL_Surface, blendMode: *SDL_BlendMode) -> c_int;
-    pub fn SDL_SetClipRect(surface: *SDL_Surface, rect: *SDL_Rect) ->  SDL_bool;
-    pub fn SDL_GetClipRect(surface: *SDL_Surface, rect: *SDL_Rect);
     pub fn SDL_ConvertSurface(src: *SDL_Surface, fmt: *SDL_PixelFormat, flags: uint32_t) ->  *SDL_Surface;
     pub fn SDL_ConvertSurfaceFormat(src: *SDL_Surface, pixel_format: uint32_t, flags: uint32_t) ->  *SDL_Surface;
     pub fn SDL_ConvertPixels(width: c_int, height: c_int, src_format: uint32_t, src: *c_void, src_pitch: c_int, dst_format: uint32_t, dst: *c_void, dst_pitch: c_int) -> c_int;
