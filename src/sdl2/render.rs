@@ -899,7 +899,8 @@ impl<'renderer> RenderTarget<'renderer> {
                     true => None,
                     false => Some(Texture {
                         raw: old_texture_raw,
-                        is_renderer_alive: self.is_renderer_alive.clone()
+                        is_renderer_alive: self.is_renderer_alive.clone(),
+                        reference_count: Rc::new(UnsafeCell::new(1usize)),
                     })
                 })
             } else {
@@ -924,7 +925,8 @@ impl<'renderer> RenderTarget<'renderer> {
                     true => None,
                     false => Some(Texture {
                         raw: old_texture_raw,
-                        is_renderer_alive: self.is_renderer_alive.clone()
+                        is_renderer_alive: self.is_renderer_alive.clone(),
+                        reference_count: Rc::new(UnsafeCell::new(1usize)),
                     })
                 })
             } else {
@@ -959,7 +961,8 @@ impl<'renderer> RenderTarget<'renderer> {
                         true => None,
                         false => Some(Texture {
                             raw: old_texture_raw,
-                            is_renderer_alive: self.is_renderer_alive.clone()
+                            is_renderer_alive: self.is_renderer_alive.clone(),
+                            reference_count: Rc::new(UnsafeCell::new(1usize)),
                         })
                     })
                 } else {
@@ -987,14 +990,34 @@ pub struct TextureQuery {
 /// A Texture can be safely dropped before or after the Renderer is dropped.
 pub struct Texture {
     raw: *mut ll::SDL_Texture,
-    is_renderer_alive: Rc<UnsafeCell<bool>>
+    is_renderer_alive: Rc<UnsafeCell<bool>>,
+    reference_count: Rc<UnsafeCell<usize>>,
 }
-
+impl Clone for Texture {
+    fn clone(&self) -> Self {
+        unsafe {
+            let rc: usize = *self.reference_count.get();
+            *self.reference_count.get() = rc + 1;
+        }
+        Texture {
+            raw: self.raw,
+            is_renderer_alive: self.is_renderer_alive.clone(),
+            reference_count: self.reference_count.clone()
+        }
+    }
+}
 impl Drop for Texture {
     fn drop(&mut self) {
-        unsafe {
-            if *self.is_renderer_alive.get() {
-                ll::SDL_DestroyTexture(self.raw);
+        unsafe { 
+            let rc: usize = *self.reference_count.get();
+            *self.reference_count.get() = rc - 1;
+            if rc == 1 {
+                if *self.is_renderer_alive.get() {
+                    ll::SDL_DestroyTexture(self.raw);
+                }
+                println!("Dropping texture");
+            } else {
+                panic!("Error: Texture reference count reached 0.");
             }
         }
     }
@@ -1407,7 +1430,8 @@ impl Texture {
     pub unsafe fn from_ll(renderer: &Renderer, raw: *mut ll::SDL_Texture) -> Texture {
         Texture {
             raw: raw,
-            is_renderer_alive: renderer.is_alive.clone()
+            is_renderer_alive: renderer.is_alive.clone(),
+            reference_count: Rc::new(UnsafeCell::new(1usize)),
         }
     }
 
